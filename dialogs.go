@@ -1,7 +1,8 @@
-package dialog
+package dialogs
 
 import (
 	"fmt"
+	"strings"
 
 	ps "github.com/Tobotobo/powershell"
 )
@@ -18,7 +19,7 @@ type MessageBoxObj struct {
 
 type InputBoxObj struct {
 	Dlg
-	Promtpt string
+	Prompt string
 }
 
 type FileDialogObj struct {
@@ -47,8 +48,12 @@ const (
 	Icon_Information
 )
 
+type Result string
+
 func Message(msg string) *MessageBoxObj {
-	return &MessageBoxObj{Msg: msg, Btn: Btn_OK, Icn: Icon_None}
+	obj := &MessageBoxObj{Msg: msg, Btn: Btn_OK, Icn: Icon_None}
+	obj.Dlg.Title = "Message Box"
+	return obj
 }
 
 func (obj *MessageBoxObj) Title(title string) *MessageBoxObj {
@@ -66,16 +71,19 @@ func (obj *MessageBoxObj) Icon(IconType int) *MessageBoxObj {
 	return obj
 }
 
-func (obj *MessageBoxObj) Show() string {
-	out, err := ps.Execute(fmt.Sprintf(`[System.Windows.Forms.MessageBox]::Show(%s, %s, %d, %d)`, obj.Dlg.Title, obj.Msg, obj.Btn, obj.Icn))
+func (obj *MessageBoxObj) Show() (Result, error) {
+	cmd := fmt.Sprintf(`Add-Type -AssemblyName System.Windows.Forms;[System.Windows.Forms.MessageBox]::Show('%s', '%s', %d, %d)`, obj.Msg, obj.Dlg.Title, obj.Btn, obj.Icn)
+	out, err := ps.Execute(cmd)
 	if err != nil {
-		panic(err)
+		return Result("Error"), err
 	}
-	return out
+	return Result(out), nil
 }
 
 func InputBox() *InputBoxObj {
-	return &InputBoxObj{Promtpt: ""}
+	obj := &InputBoxObj{Prompt: "Type in the box below"}
+	obj.Dlg.Title = "Input Box"
+	return obj
 }
 
 func (obj *InputBoxObj) Title(title string) *InputBoxObj {
@@ -84,20 +92,23 @@ func (obj *InputBoxObj) Title(title string) *InputBoxObj {
 }
 
 func (obj *InputBoxObj) Description(desc string) *InputBoxObj {
-	obj.Promtpt = desc
+	obj.Prompt = desc
 	return obj
 }
 
-func (obj *InputBoxObj) Show() string {
-	out, err := ps.Execute(fmt.Sprintf(`[Microsoft.VisualBasic.Interaction]::InputBox(%s, %s)`, obj.Promtpt, obj.Title))
+func (obj *InputBoxObj) Show() (string, error) {
+	cmd := fmt.Sprintf(`[void][Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic');[Microsoft.VisualBasic.Interaction]::InputBox('%s','%s')`, obj.Prompt, obj.Dlg.Title)
+	out, err := ps.Execute(cmd)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return out
+	return out, nil
 }
 
 func File() *FileDialogObj {
-	return &FileDialogObj{InitialDir: "C:\\", Filter: "All files (*.*)|*.*", Multi: false}
+	obj := &FileDialogObj{InitialDir: "C:\\", Filter: "All files (*.*)|*.*", Multi: false}
+	obj.Dlg.Title = "File Dialog"
+	return obj
 }
 
 func (obj *FileDialogObj) Title(title string) *FileDialogObj {
@@ -120,17 +131,14 @@ func (obj *FileDialogObj) Multiple() *FileDialogObj {
 	return obj
 }
 
-func (obj *FileDialogObj) Open() string {
-	out, err := ps.Execute(fmt.Sprintf(`
-		[void][System.Reflection.Assembly]::LoadWithPartialName("System.windows.forms")
-		$fdlg = New-Object System.Windows.Forms.OpenFileDialog
-		$fdlg.Title = %s
-		$fdlg.InitialDirectory = %s
-		$fdlg.Filter = %s
-		$fdlg.Multiselect = $true
-	`, obj.Dlg.Title, obj.InitialDir, obj.Filter))
+func (obj *FileDialogObj) Open() ([]string, Result, error) {
+	cmd := fmt.Sprintf(`[void][System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms');$fdlg = New-Object System.Windows.Forms.OpenFileDialog;$fdlg.Title = '%s';$fdlg.InitialDirectory = '%s';$fdlg.Filter = '%s';$fdlg.Multiselect = $%t;if($fdlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){Write-Output $fdlg.FileNames} else {Write-Output 'Cancel'}`, obj.Dlg.Title, obj.InitialDir, obj.Filter, obj.Multi)
+	out, err := ps.Execute(cmd)
 	if err != nil {
-		panic(err)
+		return []string{}, Result("Error"), err
 	}
-	return out
+	if out == "Cancel" {
+		return []string{}, Result(out), nil
+	}
+	return strings.Split(out, "\r\n"), Result("OK"), nil
 }
