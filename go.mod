@@ -1,4 +1,4 @@
-module github.com/lanius/ps-dialog
+module github.com/lanius412/ps-dialog
 
 go 1.17
 
