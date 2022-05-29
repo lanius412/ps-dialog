@@ -1,12 +1,13 @@
 # ps-dialog
 Windows Dialog using powershell for Go
+Details : 
 
 # Features
 * Message Box  
  |- Button Type - https://docs.microsoft.com/ja-jp/dotnet/api/system.windows.forms.messageboxbuttons?view=windowsdesktop-6.0  
  |_ Icon Type - https://docs.microsoft.com/ja-jp/dotnet/api/system.windows.forms.messageboxicon?view=windowsdesktop-6.0
 * Input Box
-* File Dialog
+* File Dialog (Open and Save)
 
 # Usage
 ```
