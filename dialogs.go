@@ -1,3 +1,36 @@
+/*
+Package ps-dialog provides common dialog boxes, such as MessageBox, InputBox, and Open/Save FileDialogs.
+
+Usage
+	import (
+		"fmt"
+		"os"
+
+		dialog "github.com/lanius412/ps-dialog"
+	)
+
+	func main() {
+		result, err := dialog.MessageBox("Message Content").Title("MessageBox").Button(dialog.Btn_YesNo).Icon(dialog.Icon_Question).Show()
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(result) // Yes
+
+		in, _ := dialog.InputBox().Title("InputBox").Description("Type in the below box").Show()
+		fmt.Println(in) // Hello
+
+		homeDir, _ := os.UserHomeDir()
+		fileDlg := dialog.File().Title("FileDialog").StartDir(homeDir).ExtFilter("TEXT File (*.txt)|*.txt")
+		filepaths, _, _ := fileDlg.Open().Multiple().Load()
+		fmt.Println(filepaths) // [C:\[username]\Desktop\sample.txt, C:\[username]/Desktop\sample2.txt]
+
+		filepath, _, _ := fileDlg.Save().Load()
+		fmt.Println(filepath) // C:\[username]\Desktop\save.txt
+	}
+
+
+*/
+
 package dialogs
 
 import (
@@ -11,45 +44,16 @@ type Dlg struct {
 	Title string
 }
 
+// Result is the value of the button was clicked
+type Result string
+
 type MessageBoxObj struct {
 	Dlg
 	Msg      string
 	Btn, Icn int
 }
 
-type InputBoxObj struct {
-	Dlg
-	Prompt string
-}
-
-type FileDialogObj struct {
-	Dlg
-	InitialDir, Filter string
-	Multi              bool
-}
-
-const (
-	Btn_OK = iota
-	Btn_OKCancel
-	Btn_AbortRetryIgnore
-	Btn_YesNoCancel
-	Btn_YesNo
-	Btn_RetryCancel
-	Btn_CancelTryContinue
-
-	Icon_None  = 0
-	Icon_Error = 16
-	Icon_Hand
-	Icon_Stop
-	Icon_Question    = 32
-	Icon_Exclamation = 48
-	Icon_Warning
-	Icon_Asterisk = 64
-	Icon_Information
-)
-
-type Result string
-
+//This function returns default MessageBoxObject (Title: "Message Box", ButtonType: OK, IconType: None)
 func Message(msg string) *MessageBoxObj {
 	obj := &MessageBoxObj{Msg: msg, Btn: Btn_OK, Icn: Icon_None}
 	obj.Dlg.Title = "Message Box"
@@ -61,10 +65,34 @@ func (obj *MessageBoxObj) Title(title string) *MessageBoxObj {
 	return obj
 }
 
+// Button Pattern on MessageBox
+const (
+	Btn_OK = iota
+	Btn_OKCancel
+	Btn_AbortRetryIgnore
+	Btn_YesNoCancel
+	Btn_YesNo
+	Btn_RetryCancel
+	Btn_CancelTryContinue
+)
+
 func (obj *MessageBoxObj) Button(ButtonType int) *MessageBoxObj {
 	obj.Btn = ButtonType
 	return obj
 }
+
+// Icon Pattern on MessageBox
+const (
+	Icon_None  = 0
+	Icon_Error = 16
+	Icon_Hand
+	Icon_Stop
+	Icon_Question    = 32
+	Icon_Exclamation = 48
+	Icon_Warning
+	Icon_Asterisk = 64
+	Icon_Information
+)
 
 func (obj *MessageBoxObj) Icon(IconType int) *MessageBoxObj {
 	obj.Icn = IconType
@@ -80,8 +108,14 @@ func (obj *MessageBoxObj) Show() (Result, error) {
 	return Result(out), nil
 }
 
+type InputBoxObj struct {
+	Dlg
+	Prompt string
+}
+
+// This function returns default InputBoxObject (Title: "Input Box", Description: "Type in the below Box")
 func InputBox() *InputBoxObj {
-	obj := &InputBoxObj{Prompt: "Type in the box below"}
+	obj := &InputBoxObj{Prompt: "Type in the below Box"}
 	obj.Dlg.Title = "Input Box"
 	return obj
 }
@@ -105,8 +139,14 @@ func (obj *InputBoxObj) Show() (string, error) {
 	return out, nil
 }
 
+type FileDialogObj struct {
+	Dlg
+	InitialDir, Filter string
+}
+
+// This function returns default FileDialogObject (Title: "File Dialog", InitialDir: "C:\", Filter: "All files (*.*)|*.*")
 func File() *FileDialogObj {
-	obj := &FileDialogObj{InitialDir: "C:\\", Filter: "All files (*.*)|*.*", Multi: false}
+	obj := &FileDialogObj{InitialDir: "C:\\", Filter: "All files (*.*)|*.*"}
 	obj.Dlg.Title = "File Dialog"
 	return obj
 }
@@ -116,22 +156,31 @@ func (obj *FileDialogObj) Title(title string) *FileDialogObj {
 	return obj
 }
 
-func (obj *FileDialogObj) SetStartDir(dir string) *FileDialogObj {
+func (obj *FileDialogObj) StartDir(dir string) *FileDialogObj {
 	obj.InitialDir = dir
 	return obj
 }
 
-func (obj *FileDialogObj) SetFilter(desc, ext string) *FileDialogObj {
+func (obj *FileDialogObj) ExtFilter(desc, ext string) *FileDialogObj {
 	obj.Filter = fmt.Sprintf(`%s (*.%s)|*.%s`, desc, ext, ext)
 	return obj
 }
 
-func (obj *FileDialogObj) Multiple() *FileDialogObj {
+type OpenFileDialogObj struct {
+	FileDialogObj
+	Multi bool
+}
+
+func (obj *FileDialogObj) Open() *OpenFileDialogObj {
+	return &OpenFileDialogObj{FileDialogObj: *obj}
+}
+
+func (obj *OpenFileDialogObj) Multiple() *OpenFileDialogObj {
 	obj.Multi = true
 	return obj
 }
 
-func (obj *FileDialogObj) Open() ([]string, Result, error) {
+func (obj *OpenFileDialogObj) Load() ([]string, Result, error) {
 	cmd := fmt.Sprintf(`[void][System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms');$fdlg = New-Object System.Windows.Forms.OpenFileDialog;$fdlg.Title = '%s';$fdlg.InitialDirectory = '%s';$fdlg.Filter = '%s';$fdlg.Multiselect = $%t;if($fdlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){Write-Output $fdlg.FileNames} else {Write-Output 'Cancel'}`, obj.Dlg.Title, obj.InitialDir, obj.Filter, obj.Multi)
 	out, err := ps.Execute(cmd)
 	if err != nil {
@@ -141,4 +190,36 @@ func (obj *FileDialogObj) Open() ([]string, Result, error) {
 		return []string{}, Result(out), nil
 	}
 	return strings.Split(out, "\r\n"), Result("OK"), nil
+}
+
+type SaveFileDialogObj struct {
+	FileDialogObj
+	OverwriteWarning bool
+	OverwriteForce   string
+}
+
+func (obj *FileDialogObj) Save() *SaveFileDialogObj {
+	return &SaveFileDialogObj{FileDialogObj: *obj, OverwriteWarning: true, OverwriteForce: ""}
+}
+
+func (obj *SaveFileDialogObj) OverwriteWarningDisable() *SaveFileDialogObj {
+	obj.OverwriteWarning = false
+	return obj
+}
+
+func (obj *SaveFileDialogObj) OverwriteForceEnable() *SaveFileDialogObj {
+	obj.OverwriteForce = "-Force"
+	return obj
+}
+
+func (obj *SaveFileDialogObj) Load() (string, Result, error) {
+	cmd := fmt.Sprintf(`[void][System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms');$fdlg = New-Object System.Windows.Forms.SaveFileDialog;$fdlg.Title = '%s';$fdlg.InitialDirectory = '%s';$fdlg.Filter = '%s';$fdlg.OverwritePrompt = $%t;if($fdlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){New-Item $fdlg.FileName %s} else {Write-Output 'Cancel'}`, obj.Dlg.Title, obj.InitialDir, obj.Filter, obj.OverwriteWarning, obj.OverwriteForce)
+	out, err := ps.Execute(cmd)
+	if err != nil {
+		return "", Result("Error"), err
+	}
+	if out == "Cancel" {
+		return "", Result(out), nil
+	}
+	return out, Result("OK"), nil
 }
